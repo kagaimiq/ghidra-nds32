@@ -1,0 +1,187 @@
+define alignment=2;
+
+define space ram type=ram_space size=4 default;
+define space register type=register_space size=4;
+
+########################################################################
+
+define register offset=0 size=4 [
+	r0  r1  r2  r3  r4  r5  r6  r7
+	r8  r9  r10 r11 r12 r13 r14 r15
+	r16 r17 r18 r19 r20 r21 r22 r23
+	r24 r25 r26 r27 fp  gp  lp  sp
+];
+
+define register offset=0x100 size=4 [
+	pc psw ipc ipsw
+];
+
+########################################################################
+
+define token instr (32) endian=big
+	iwidth = (31,31)	# ==0
+
+	ins2530 = (25,30)
+	ins2424 = (24,24)
+	ins1919 = (19,19)
+	ins1414 = (14,14)
+	ins0009 = (0,9)
+
+	imm0023s = (0,23) signed
+	imm0019s = (0,19) signed
+	imm0019  = (0,19)
+	imm0018s = (0,18) signed
+	imm0014s = (0,14) signed
+	imm0013s = (0,13) signed
+	imm0011  = (0,11)
+
+	reg2024 = (20,24)
+	reg1519 = (15,19)
+	reg1014 = (10,14)
+;
+
+define token hinstr (16) endian=big
+	hwidth = (15,15)	# ==1
+
+	hins1014 = (10,14)
+	hins0814 = (8,14)
+
+	himm0004 = (0,4)
+
+	hreg0509 = (5,9)
+	hreg0004 = (0,4)
+;
+
+########################################################################
+
+attach variables [ reg1014 reg1519 reg2024 hreg0004 hreg0509 ]
+		 [ r0  r1  r2  r3  r4  r5  r6  r7
+		   r8  r9  r10 r11 r12 r13 r14 r15
+		   r16 r17 r18 r19 r20 r21 r22 r23
+		   r24 r25 r26 r27 fp  gp  lp  sp  ];
+
+########################################################
+
+jimm24: reloc is imm0023s
+	[ reloc = inst_start + (imm0023s << 1); ]
+	{ export *[ram]:4 reloc; }
+
+bimm14: reloc is imm0013s
+	[ reloc = inst_start + (imm0013s << 1); ]
+	{ export *[ram]:4 reloc; }
+
+
+lswimm15: imm is imm0014s
+	[ imm = (imm0014s << 2); ]
+	{ local tmp:4 = imm; export tmp; }
+
+########################################################
+
+define pcodeop todo;
+define pcodeop nop;
+
+######### 32-bit instructions #########
+
+:lwi reg2024, [reg1519 + #lswimm15] is iwidth=0x0 & ins2530=0x02 & reg2024 & reg1519 & lswimm15
+{
+	local addr:4 = reg1519 + lswimm15;
+	reg2024 = *[ram]:4 addr;
+}
+
+:swi reg2024, [reg1519 + #lswimm15] is iwidth=0x0 & ins2530=0x0a & reg2024 & reg1519 & lswimm15
+{
+	local addr:4 = reg1519 + lswimm15;
+	*[ram]:4 addr = reg2024;
+}
+
+# hmmm... smells like JieLi PI32 .. or the Blackfin ...
+:swi.bi reg2024, [reg1519], #lswimm15 is iwidth=0x0 & ins2530=0x0e & reg2024 & reg1519 & lswimm15
+{
+	*[ram]:4 reg1519 = reg2024;
+	reg1519 = reg1519 + lswimm15;
+}
+
+:addi.gp reg2024, imm0018s is iwidth=0x0 & ins2530=0x1f & reg2024 & ins1919=0x1 & imm0018s
+{
+	reg2024 = gp + imm0018s;
+}
+
+:and reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x002
+{
+	reg2024 = reg1519 & reg1014;
+}
+
+:xor reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x003
+{
+	reg2024 = reg1519 ^ reg1014;
+}
+
+:or reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x004
+{
+	reg2024 = reg1519 & reg1014;
+}
+
+:nor reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x005
+{
+	reg2024 = reg1519 | ~reg1014;
+}
+
+:movi reg2024, imm0019s is iwidth=0x0 & ins2530=0x22 & reg2024 & imm0019s
+{
+	reg2024 = imm0019s;
+}
+
+:sethi reg2024, imm0019 is iwidth=0x0 & ins2530=0x23 & reg2024 & imm0019
+{
+	reg2024 = imm0019 << 12;
+}
+
+:j jimm24 is iwidth=0x0 & ins2530=0x24 & ins2424=0x0 & jimm24
+{
+	goto jimm24;
+}
+
+:jal jimm24 is iwidth=0x0 & ins2530=0x24 & ins2424=0x1 & jimm24
+{
+	lp = inst_next;
+	call jimm24;
+}
+
+:beq reg2024, reg1519, bimm14 is iwidth=0x0 & ins2530=0x26 & reg2024 & reg1519 & ins1414=0x0 & bimm14
+{
+	if (reg2024 == reg1519)
+		goto bimm14;
+}
+
+:bne reg2024, reg1519, bimm14 is iwidth=0x0 & ins2530=0x26 & reg2024 & reg1519 & ins1414=0x1 & bimm14
+{
+	if (reg2024 != reg1519)
+		goto bimm14;
+}
+
+:ori reg2024, reg1519, imm0011 is iwidth=0x0 & ins2530=0x2c & reg2024 & reg1519 & imm0011
+{
+	reg2024 = reg1519 | imm0011;
+}
+
+######### 16-bit instructions #########
+
+:mov55 hreg0509, hreg0004 is hwidth=0x1 & hins1014=0x00 & hreg0509 & hreg0004
+{
+	hreg0509 = hreg0004;
+}
+
+:movi55 hreg0509, himm0004 is hwidth=0x1 & hins1014=0x01 & hreg0509 & himm0004
+{
+	hreg0509 = himm0004;
+}
+
+:nop16 is hwidth=0x1 & hins0814=0x12
+{
+	nop();
+}
+
+:ret5 hreg0004 is hwidth=0x1 & hins0814=0x5d & hreg0004
+{
+	return [hreg0004];
+}

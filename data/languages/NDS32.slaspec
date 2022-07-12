@@ -1,0 +1,3 @@
+define endian=little;
+
+@include "NDS32.sinc"

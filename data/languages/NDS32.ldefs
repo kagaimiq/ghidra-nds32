@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<language_definitions>
+	<language processor="NDS32"
+	          endian="little"
+	          size="32"
+	          variant="default"
+	          version="1.0"
+	          slafile="NDS32.sla"
+	          processorspec="NDS32.pspec"
+	          id="NDS32:LE:32:default">
+		<description>Andes NDS32</description>
+		<compiler name="default" spec="NDS32.cspec" id="default"/>
+		<external_name tool="DWARF.register.mapping.file" name="NDS32.dwarf"/>
+	</language>
+</language_definitions>
