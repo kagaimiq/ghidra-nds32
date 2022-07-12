@@ -82,13 +82,13 @@ define pcodeop nop;
 
 ######### 32-bit instructions #########
 
-:lwi reg2024, [reg1519 + #lswimm15] is iwidth=0x0 & ins2530=0x02 & reg2024 & reg1519 & lswimm15
+:lwi reg2024, [reg1519+#lswimm15] is iwidth=0x0 & ins2530=0x02 & reg2024 & reg1519 & lswimm15
 {
 	local addr:4 = reg1519 + lswimm15;
 	reg2024 = *[ram]:4 addr;
 }
 
-:swi reg2024, [reg1519 + #lswimm15] is iwidth=0x0 & ins2530=0x0a & reg2024 & reg1519 & lswimm15
+:swi reg2024, [reg1519+#lswimm15] is iwidth=0x0 & ins2530=0x0a & reg2024 & reg1519 & lswimm15
 {
 	local addr:4 = reg1519 + lswimm15;
 	*[ram]:4 addr = reg2024;
