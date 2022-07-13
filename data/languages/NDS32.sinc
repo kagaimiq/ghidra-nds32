@@ -26,8 +26,10 @@ define token instr (32) endian=big
 	ins1919 = (19,19)
 	ins1619 = (16,19)
 	ins1414 = (14,14)
+	ins0024 = (0,24)
 	ins0009 = (0,9)
 
+	imm1014  = (10,14)
 	imm0023s = (0,23) signed
 	imm0019s = (0,19) signed
 	imm0019  = (0,19)
@@ -36,6 +38,8 @@ define token instr (32) endian=big
 	imm0014s = (0,14) signed
 	imm0013s = (0,13) signed
 	imm0011  = (0,11)
+
+	sreg1019 = (10,19)
 
 	reg2024 = (20,24)
 	reg1519 = (15,19)
@@ -84,6 +88,10 @@ bjhimm8: reloc is himm0007s
 	{ export *[ram]:4 reloc; }
 
 
+lshimm15: imm is imm0014s
+	[ imm = (imm0014s << 1); ]
+	{ local tmp:4 = imm; export tmp; }
+
 lswimm15: imm is imm0014s
 	[ imm = (imm0014s << 2); ]
 	{ local tmp:4 = imm; export tmp; }
@@ -95,18 +103,49 @@ define pcodeop nop;
 
 ######### 32-bit instructions #########
 
+#=============== 0x00 ==============#
+:lbi reg2024, [reg1519+#imm0014s] is iwidth=0x0 & ins2530=0x00 & reg2024 & reg1519 & imm0014s
+{
+	local addr:4 = reg1519 + imm0014s;
+	reg2024 = zext(*[ram]:1 addr);
+}
+
+#=============== 0x01 ==============#
+:lhi reg2024, [reg1519+#lshimm15] is iwidth=0x0 & ins2530=0x01 & reg2024 & reg1519 & lshimm15
+{
+	local addr:4 = reg1519 + lshimm15;
+	reg2024 = zext(*[ram]:2 addr);
+}
+
+#=============== 0x02 ==============#
 :lwi reg2024, [reg1519+#lswimm15] is iwidth=0x0 & ins2530=0x02 & reg2024 & reg1519 & lswimm15
 {
 	local addr:4 = reg1519 + lswimm15;
 	reg2024 = *[ram]:4 addr;
 }
 
+#=============== 0x04 ==============#
+:lbi.bi reg2024, [reg1519], #imm0014s is iwidth=0x0 & ins2530=0x04 & reg2024 & reg1519 & imm0014s
+{
+	reg2024 = zext(*[ram]:1 reg1519);
+	reg1519 = reg1519 + imm0014s;
+}
+
+#=============== 0x05 ==============#
+:lhi.bi reg2024, [reg1519], #lshimm15 is iwidth=0x0 & ins2530=0x05 & reg2024 & reg1519 & lshimm15
+{
+	reg2024 = zext(*[ram]:2 reg1519);
+	reg1519 = reg1519 + lshimm15;
+}
+
+#=============== 0x0A ==============#
 :swi reg2024, [reg1519+#lswimm15] is iwidth=0x0 & ins2530=0x0a & reg2024 & reg1519 & lswimm15
 {
 	local addr:4 = reg1519 + lswimm15;
 	*[ram]:4 addr = reg2024;
 }
 
+#=============== 0x0E ==============#
 # hmmm... smells like JieLi PI32 .. or the Blackfin ...
 :swi.bi reg2024, [reg1519], #lswimm15 is iwidth=0x0 & ins2530=0x0e & reg2024 & reg1519 & lswimm15
 {
@@ -114,9 +153,21 @@ define pcodeop nop;
 	reg1519 = reg1519 + lswimm15;
 }
 
+#=============== 0x1F ==============#
 :addi.gp reg2024, imm0018s is iwidth=0x0 & ins2530=0x1f & reg2024 & ins1919=0x1 & imm0018s
 {
 	reg2024 = gp + imm0018s;
+}
+
+#=============== 0x20 ==============#
+:add reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x000
+{
+	reg2024 = reg1519 + reg1014;
+}
+
+:sub reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x001
+{
+	reg2024 = reg1519 - reg1014;
 }
 
 :and reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x002
@@ -139,16 +190,121 @@ define pcodeop nop;
 	reg2024 = reg1519 | ~reg1014;
 }
 
+:slt reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x006
+{
+	reg2024 = zext(reg1519 < reg1014);
+}
+
+:slts reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x007
+{
+	reg2024 = zext(reg1519 s< reg1014);
+}
+
+:slli reg2024, reg1519, imm1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & imm1014 & ins0009=0x008
+{
+	reg2024 = reg1519 << imm1014;
+}
+
+:srli reg2024, reg1519, imm1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & imm1014 & ins0009=0x009
+{
+	reg2024 = reg1519 >> imm1014;
+}
+
+:srai reg2024, reg1519, imm1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & imm1014 & ins0009=0x00a
+{
+	reg2024 = reg1519 s>> imm1014;
+}
+
+:rotri reg2024, reg1519, imm1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & imm1014 & ins0009=0x00b
+{
+	## stolen from /Ghidra/Processors/MIPS/data/languages/mips32Instructions.sinc ##
+	local tmp1:4 = reg1519 >> imm1014;
+	local tmp2:4 = reg1519 << (32 - imm1014);
+	reg2024 = tmp1 + tmp2;
+}
+
+:sll reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x00c
+{
+	reg2024 = reg1519 << reg1014;
+}
+
+:srl reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x00d
+{
+	reg2024 = reg1519 >> reg1014;
+}
+
+:sra reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x00e
+{
+	reg2024 = reg1519 s>> reg1014;
+}
+
+:rotr reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x00f
+{
+	local tmp1:4 = reg1519 >> reg1014;
+	local tmp2:4 = reg1519 << (32 - reg1014);
+	reg2024 = tmp1 + tmp2;
+}
+
+:seb reg2024, reg1519 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & ins0009=0x010
+{
+	reg2024 = sext(reg1519:1);
+}
+
+:seh reg2024, reg1519 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & ins0009=0x011
+{
+	reg2024 = sext(reg1519:2);
+}
+
+:zeh reg2024, reg1519 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & ins0009=0x013
+{
+	reg2024 = zext(reg1519:2);
+}
+
+#:wsbh reg2024, reg1519 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & ins0009=0x014
+#{
+#	reg2024 = todo(reg1519);
+#}
+
+:mul reg2024, reg1519, reg1014 is iwidth=0x0 & ins2530=0x20 & reg2024 & reg1519 & reg1014 & ins0009=0x024
+{
+	reg2024 = reg1519 * reg1014;
+}
+
+#=============== 0x21 ==============#
+:bset reg2024, reg1519, imm1014 is iwidth=0x0 & ins2530=0x21 & reg2024 & reg1519 & imm1014 & ins0009=0x008
+{
+	reg2024 = reg1519 | (1 << imm1014);
+}
+
+:bclr reg2024, reg1519, imm1014 is iwidth=0x0 & ins2530=0x21 & reg2024 & reg1519 & imm1014 & ins0009=0x009
+{
+	reg2024 = reg1519 & ~(1 << imm1014);
+}
+
+:btgl reg2024, reg1519, imm1014 is iwidth=0x0 & ins2530=0x21 & reg2024 & reg1519 & imm1014 & ins0009=0x00a
+{
+	reg2024 = reg1519 ^ (1 << imm1014);
+}
+
+:btst reg2024, reg1519, imm1014 is iwidth=0x0 & ins2530=0x21 & reg2024 & reg1519 & imm1014 & ins0009=0x00b
+{
+	## maybe!! ##
+	reg2024 = reg1519 & (1 << imm1014);
+}
+
+#=============== 0x22 ==============#
 :movi reg2024, imm0019s is iwidth=0x0 & ins2530=0x22 & reg2024 & imm0019s
 {
 	reg2024 = imm0019s;
 }
 
+#=============== 0x23 ==============#
 :sethi reg2024, imm0019 is iwidth=0x0 & ins2530=0x23 & reg2024 & imm0019
 {
 	reg2024 = imm0019 << 12;
 }
 
+#=============== 0x24 ==============#
 :j jimm24 is iwidth=0x0 & ins2530=0x24 & ins2424=0x0 & jimm24
 {
 	goto jimm24;
@@ -160,6 +316,7 @@ define pcodeop nop;
 	call jimm24;
 }
 
+#=============== 0x25 ==============#
 :jr reg1014 is iwidth=0x0 & ins2530=0x25 & reg1014 & ins0009=0x000
 {
 	goto [reg1014];
@@ -176,6 +333,7 @@ define pcodeop nop;
 	return [reg1014];
 }
 
+#=============== 0x26 ==============#
 :beq reg2024, reg1519, bimm14 is iwidth=0x0 & ins2530=0x26 & reg2024 & reg1519 & ins1414=0x0 & bimm14
 {
 	if (reg2024 == reg1519)
@@ -188,6 +346,7 @@ define pcodeop nop;
 		goto bimm14;
 }
 
+#=============== 0x27 ==============#
 :beqz reg2024, bimm16 is iwidth=0x0 & ins2530=0x27 & reg2024 & ins1619=0x2 & bimm16
 {
 	if (reg2024 == 0)
@@ -224,9 +383,98 @@ define pcodeop nop;
 		goto bimm16;
 }
 
+#=============== 0x28 ==============#
+:addi reg2024, reg1519, imm0014s is iwidth=0x0 & ins2530=0x28 & reg2024 & reg1519 & imm0014s
+{
+	reg2024 = reg1519 + imm0014s;
+}
+
+#=============== 0x29 ==============#
+:subri reg2024, reg1519, imm0014s is iwidth=0x0 & ins2530=0x29 & reg2024 & reg1519 & imm0014s
+{
+	reg2024 = reg1519 - imm0014s;
+}
+
+#=============== 0x2A ==============#
+:andi reg2024, reg1519, imm0011 is iwidth=0x0 & ins2530=0x2a & reg2024 & reg1519 & imm0011
+{
+	reg2024 = reg1519 & imm0011;
+}
+
+#=============== 0x2B ==============#
+:xori reg2024, reg1519, imm0011 is iwidth=0x0 & ins2530=0x2b & reg2024 & reg1519 & imm0011
+{
+	reg2024 = reg1519 ^ imm0011;
+}
+
+#=============== 0x2C ==============#
 :ori reg2024, reg1519, imm0011 is iwidth=0x0 & ins2530=0x2c & reg2024 & reg1519 & imm0011
 {
 	reg2024 = reg1519 | imm0011;
+}
+
+#=============== 0x2E ==============#
+:slti reg2024, reg1519, imm0014s is iwidth=0x0 & ins2530=0x2e & reg2024 & reg1519 & imm0014s
+{
+	reg2024 = zext(reg1519 < imm0014s);
+}
+
+#=============== 0x2F ==============#
+:sltsi reg2024, reg1519, imm0014s is iwidth=0x0 & ins2530=0x2f & reg2024 & reg1519 & imm0014s
+{
+	reg2024 = zext(reg1519 s< imm0014s);
+}
+
+#=============== 0x32 ==============#
+define pcodeop ReadSpeciReg;
+define pcodeop WriteSpeciReg;
+
+define pcodeop dsb;
+define pcodeop isb;
+
+define pcodeop setLittleEndian;
+define pcodeop setBigEndian;
+define pcodeop disableGlobalInterrupts;
+define pcodeop enableGlobalInterrupts;
+
+:mfsr reg2024, sreg1019 is iwidth=0x0 & ins2530=0x32 & reg2024 & sreg1019 & ins0009=0x002
+{
+	reg2024 = ReadSpeciReg(sreg1019:2);
+}
+
+:mtsr reg2024, sreg1019 is iwidth=0x0 & ins2530=0x32 & reg2024 & sreg1019 & ins0009=0x003
+{
+	WriteSpeciReg(sreg1019:2, reg2024);
+}
+
+:dsb is iwidth=0x0 & ins2530=0x32 & ins0024=0x0000008
+{
+	dsb();
+}
+
+:isb is iwidth=0x0 & ins2530=0x32 & ins0024=0x0000009
+{
+	isb();
+}
+
+:setend.l is iwidth=0x0 & ins2530=0x32 & ins0024=0x0020023
+{
+	setLittleEndian();
+}
+
+:setend.b is iwidth=0x0 & ins2530=0x32 & ins0024=0x0120023
+{
+	setBigEndian();
+}
+
+:setgie.d is iwidth=0x0 & ins2530=0x32 & ins0024=0x0020043
+{
+	disableGlobalInterrupts();
+}
+
+:setgie.e is iwidth=0x0 & ins2530=0x32 & ins0024=0x0120043
+{
+	enableGlobalInterrupts();
 }
 
 ######### 16-bit instructions #########
@@ -266,3 +514,4 @@ define pcodeop nop;
 {
 	return [hreg0004];
 }
+
