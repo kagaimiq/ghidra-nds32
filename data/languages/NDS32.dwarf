@@ -1,7 +1,0 @@
-<dwarf>
-	<!-- Made up something that seem to work for now !-->
-	<register_mappings>
-		<register_mapping dwarf="0" ghidra="r0" auto_count="31"/>
-		<register_mapping dwarf="31" ghidra="sp" stackpointer="true"/>
-	</register_mappings>
-</dwarf>

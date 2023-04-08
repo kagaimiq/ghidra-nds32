@@ -1,10 +1,12 @@
 define alignment=2;
 
-define space ram type=ram_space size=4 default;
+define space ram      type=ram_space      size=4 default;
 define space register type=register_space size=4;
 
-########################################################################
-
+#############################################################################
+#
+# Registers
+#
 define register offset=0 size=4 [
 	r0  r1  r2  r3  r4  r5  r6  r7
 	r8  r9  r10 r11 r12 r13 r14 r15
@@ -12,15 +14,23 @@ define register offset=0 size=4 [
 	r24 r25 r26 r27 fp  gp  lp  sp
 ];
 
+## TODO ##
 define register offset=0x100 size=4 [
 	pc psw ipc ipsw
 ];
 
-########################################################################
+#############################################################################
+#
+# Instruction tokens
+#
 
-define token instr (32) endian=big
-	iwidth = (31,31)	# ==0
+# 32-bit wide
+define token instr(32) endian=big
+	iwidth = (31,31)
 
+	#
+	# instruction type fields
+	#
 	ins2530 = (25,30)
 	ins2424 = (24,24)
 	ins1919 = (19,19)
@@ -29,6 +39,9 @@ define token instr (32) endian=big
 	ins0024 = (0,24)
 	ins0009 = (0,9)
 
+	#
+	# immediate fields
+	#
 	imm1014  = (10,14)
 	imm0023s = (0,23) signed
 	imm0019s = (0,19) signed
@@ -39,53 +52,69 @@ define token instr (32) endian=big
 	imm0013s = (0,13) signed
 	imm0011  = (0,11)
 
-	sreg1019 = (10,19)
+	#
+	# register fields
+	#
+	regA = (20,24)
+	regB = (15,19)
+	regC = (10,14)
 
-	reg2024 = (20,24)
-	reg1519 = (15,19)
-	reg1014 = (10,14)
+	sreg1019 = (10,19)
 ;
 
-define token hinstr (16) endian=big
-	hwidth = (15,15)	# ==1
+# 16-bit wide
+define token hinstr(16) endian=big
+	hwidth = (15,15)
 
+	#
+	# instruction type fields
+	#
 	hins1014 = (10,14)
 	hins0909 = (9,9)
 	hins0814 = (8,14)
 	hins0507 = (5,7)
 	hins0002 = (0,2)
 
+	#
+	# immediate fields
+	#
 	himm0007s = (0,7) signed
 	himm0004  = (0,4)
 	himm0002  = (0,2)
 
-	# 5-bit
-	hreg0509 = (5,9)
-	hreg0004 = (0,4)
-	# 4-bit
-	hreg0508 = (5,8)
-	# 3-bit
-	hreg0608 = (6,8)
-	hreg0305 = (3,5)
-	hreg0002 = (0,2)
+	#
+	# register fields
+	#
+	hregAw5 = (5,9)
+	hregBw5 = (0,4)
+	hregAw4 = (5,8)
+	hregAw3 = (6,8)
+	hregBw3 = (3,5)
+	hregCw3 = (0,2)
 ;
 
-########################################################################
+#############################################################################
+#
+# Variables
+#
 
-attach variables [ reg1014 reg1519 reg2024 hreg0004 hreg0509 ]
+attach variables [ regC regB regA hregBw5 hregAw5 ]
 		 [ r0  r1  r2  r3  r4  r5  r6  r7
 		   r8  r9  r10 r11 r12 r13 r14 r15
 		   r16 r17 r18 r19 r20 r21 r22 r23
 		   r24 r25 r26 r27 fp  gp  lp  sp  ];
 
-attach variables [ hreg0508 ]
+attach variables [ hregAw4 ]
 		 [ r0  r1  r2  r3  r4  r5  r6  r7
 		   r8  r9  r10 r11 r12 r13 r14 r15 ];
 
-attach variables [ hreg0002 hreg0305 hreg0608 ]
+attach variables [ hregCw3 hregBw3 hregAw3 ]
 		 [ r0  r1  r2  r3  r4  r5  r6  r7 ];
 
-########################################################
+#############################################################################
+#
+# Stuff
+#
 
 jimm24: reloc is imm0023s
 	[ reloc = inst_start + (imm0023s << 1); ]
@@ -113,10 +142,485 @@ lswimm15: imm is imm0014s
 	[ imm = (imm0014s << 2); ]
 	{ local tmp:4 = imm; export tmp; }
 
-########################################################
+#############################################################################
+#
+# Macros
+#
 
-define pcodeop todo;
+#############################################################################
+#
+# Instructions
+#
+
 define pcodeop nop;
 
-@include "32bit-ins.sinc"
-@include "16bit-ins.sinc"
+define pcodeop ReadSPR;
+define pcodeop WriteSPR;
+define pcodeop DataSyncBarrier;
+define pcodeop InstructionSyncBarrier;
+define pcodeop SetLittleEndian;
+define pcodeop SetBigEndian;
+define pcodeop DisableGlobalInterrupts;
+define pcodeop EnableGlobalInterrupts;
+
+#######################################
+######### 32-bit instructions #########
+#######################################
+
+:lbi regA, [regB+#imm0014s] is iwidth=0 & ins2530=0x00 & regA & regB & imm0014s
+{
+	local addr:4 = regB + imm0014s;
+	regA = zext(*[ram]:1 addr);
+}
+
+:lhi regA, [regB+#lshimm15] is iwidth=0 & ins2530=0x01 & regA & regB & lshimm15
+{
+	local addr:4 = regB + lshimm15;
+	regA = zext(*[ram]:2 addr);
+}
+
+:lwi regA, [regB+#lswimm15] is iwidth=0 & ins2530=0x02 & regA & regB & lswimm15
+{
+	local addr:4 = regB + lswimm15;
+	regA = *[ram]:4 addr;
+}
+
+:lbi.bi regA, [regB], #imm0014s is iwidth=0 & ins2530=0x04 & regA & regB & imm0014s
+{
+	regA = zext(*[ram]:1 regB);
+	regB = regB + imm0014s;
+}
+
+:lhi.bi regA, [regB], #lshimm15 is iwidth=0 & ins2530=0x05 & regA & regB & lshimm15
+{
+	regA = zext(*[ram]:2 regB);
+	regB = regB + lshimm15;
+}
+
+:swi regA, [regB+#lswimm15] is iwidth=0 & ins2530=0x0a & regA & regB & lswimm15
+{
+	local addr:4 = regB + lswimm15;
+	*[ram]:4 addr = regA;
+}
+
+:swi.bi regA, [regB], #lswimm15 is iwidth=0 & ins2530=0x0e & regA & regB & lswimm15
+{
+	*[ram]:4 regB = regA;
+	regB = regB + lswimm15;
+}
+
+:addi.gp regA, imm0018s is iwidth=0 & ins2530=0x1f & regA & ins1919=0x1 & imm0018s
+{
+	regA = gp + imm0018s;
+}
+
+:add regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x000
+{
+	regA = regB + regC;
+}
+
+:sub regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x001
+{
+	regA = regB - regC;
+}
+
+:and regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x002
+{
+	regA = regB & regC;
+}
+
+:xor regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x003
+{
+	regA = regB ^ regC;
+}
+
+:or regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x004
+{
+	regA = regB & regC;
+}
+
+:nor regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x005
+{
+	regA = regB | ~regC;
+}
+
+:slt regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x006
+{
+	regA = zext(regB < regC);
+}
+
+:slts regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x007
+{
+	regA = zext(regB s< regC);
+}
+
+:slli regA, regB, imm1014 is iwidth=0 & ins2530=0x20 & regA & regB & imm1014 & ins0009=0x008
+{
+	regA = regB << imm1014;
+}
+
+:srli regA, regB, imm1014 is iwidth=0 & ins2530=0x20 & regA & regB & imm1014 & ins0009=0x009
+{
+	regA = regB >> imm1014;
+}
+
+:srai regA, regB, imm1014 is iwidth=0 & ins2530=0x20 & regA & regB & imm1014 & ins0009=0x00a
+{
+	regA = regB s>> imm1014;
+}
+
+:rotri regA, regB, imm1014 is iwidth=0 & ins2530=0x20 & regA & regB & imm1014 & ins0009=0x00b
+{
+	## stolen from /Ghidra/Processors/MIPS/data/languages/mips32Instructions.sinc ##
+	local tmp1:4 = regB >> imm1014;
+	local tmp2:4 = regB << (32 - imm1014);
+	regA = tmp1 + tmp2;
+}
+
+:sll regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x00c
+{
+	regA = regB << regC;
+}
+
+:srl regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x00d
+{
+	regA = regB >> regC;
+}
+
+:sra regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x00e
+{
+	regA = regB s>> regC;
+}
+
+:rotr regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x00f
+{
+	## stolen from there too ##
+	local tmp1:4 = regB >> regC;
+	local tmp2:4 = regB << (32 - regC);
+	regA = tmp1 + tmp2;
+}
+
+:seb regA, regB is iwidth=0 & ins2530=0x20 & regA & regB & ins0009=0x010
+{
+	regA = sext(regB:1);
+}
+
+:seh regA, regB is iwidth=0 & ins2530=0x20 & regA & regB & ins0009=0x011
+{
+	regA = sext(regB:2);
+}
+
+:zeh regA, regB is iwidth=0 & ins2530=0x20 & regA & regB & ins0009=0x013
+{
+	regA = zext(regB:2);
+}
+
+### ???
+#:wsbh regA, regB is iwidth=0 & ins2530=0x20 & regA & regB & ins0009=0x014
+#{
+#	regA = todo(regB);
+#}
+
+:mul regA, regB, regC is iwidth=0 & ins2530=0x20 & regA & regB & regC & ins0009=0x024
+{
+	regA = regB * regC;
+}
+
+:bset regA, regB, imm1014 is iwidth=0 & ins2530=0x21 & regA & regB & imm1014 & ins0009=0x008
+{
+	regA = regB | (1 << imm1014);
+}
+
+:bclr regA, regB, imm1014 is iwidth=0 & ins2530=0x21 & regA & regB & imm1014 & ins0009=0x009
+{
+	regA = regB & ~(1 << imm1014);
+}
+
+:btgl regA, regB, imm1014 is iwidth=0 & ins2530=0x21 & regA & regB & imm1014 & ins0009=0x00a
+{
+	regA = regB ^ (1 << imm1014);
+}
+
+:btst regA, regB, imm1014 is iwidth=0 & ins2530=0x21 & regA & regB & imm1014 & ins0009=0x00b
+{
+	## maybe!! ##
+	regA = regB & (1 << imm1014);
+}
+
+:movi regA, imm0019s is iwidth=0 & ins2530=0x22 & regA & imm0019s
+{
+	regA = imm0019s;
+}
+
+:sethi regA, imm0019 is iwidth=0 & ins2530=0x23 & regA & imm0019
+{
+	regA = imm0019 << 12;
+}
+
+:j jimm24 is iwidth=0 & ins2530=0x24 & ins2424=0 & jimm24
+{
+	goto jimm24;
+}
+
+:jal jimm24 is iwidth=0 & ins2530=0x24 & ins2424=1 & jimm24
+{
+	lp = inst_next;
+	call jimm24;
+}
+
+:jr regC is iwidth=0 & ins2530=0x25 & regC & ins0009=0x000
+{
+	goto [regC];
+}
+
+:jral regA, regC is iwidth=0 & ins2530=0x25 & regA & regC & ins0009=0x001
+{
+	regA = inst_next;
+	call [regC];
+}
+
+:ret regC is iwidth=0 & ins2530=0x25 & regC & ins0009=0x020
+{
+	return [regC];
+}
+
+:beq regA, regB, bimm14 is iwidth=0 & ins2530=0x26 & regA & regB & ins1414=0 & bimm14
+{
+	if (regA == regB)
+		goto bimm14;
+}
+
+:bne regA, regB, bimm14 is iwidth=0 & ins2530=0x26 & regA & regB & ins1414=1 & bimm14
+{
+	if (regA != regB)
+		goto bimm14;
+}
+
+:beqz regA, bimm16 is iwidth=0 & ins2530=0x27 & regA & ins1619=0x2 & bimm16
+{
+	if (regA == 0)
+		goto bimm16;
+}
+
+:bnez regA, bimm16 is iwidth=0 & ins2530=0x27 & regA & ins1619=0x3 & bimm16
+{
+	if (regA != 0)
+		goto bimm16;
+}
+
+:bgez regA, bimm16 is iwidth=0 & ins2530=0x27 & regA & ins1619=0x4 & bimm16
+{
+	if (regA s>= 0)
+		goto bimm16;
+}
+
+:bltz regA, bimm16 is iwidth=0 & ins2530=0x27 & regA & ins1619=0x5 & bimm16
+{
+	if (regA s< 0)
+		goto bimm16;
+}
+
+:bgtz regA, bimm16 is iwidth=0 & ins2530=0x27 & regA & ins1619=0x6 & bimm16
+{
+	if (regA s> 0)
+		goto bimm16;
+}
+
+:blez regA, bimm16 is iwidth=0 & ins2530=0x27 & regA & ins1619=0x7 & bimm16
+{
+	if (regA s<= 0)
+		goto bimm16;
+}
+
+:addi regA, regB, imm0014s is iwidth=0 & ins2530=0x28 & regA & regB & imm0014s
+{
+	regA = regB + imm0014s;
+}
+
+:subri regA, regB, imm0014s is iwidth=0 & ins2530=0x29 & regA & regB & imm0014s
+{
+	regA = regB - imm0014s;
+}
+
+:andi regA, regB, imm0011 is iwidth=0 & ins2530=0x2a & regA & regB & imm0011
+{
+	regA = regB & imm0011;
+}
+
+:xori regA, regB, imm0011 is iwidth=0 & ins2530=0x2b & regA & regB & imm0011
+{
+	regA = regB ^ imm0011;
+}
+
+:ori regA, regB, imm0011 is iwidth=0 & ins2530=0x2c & regA & regB & imm0011
+{
+	regA = regB | imm0011;
+}
+
+:slti regA, regB, imm0014s is iwidth=0 & ins2530=0x2e & regA & regB & imm0014s
+{
+	regA = zext(regB < imm0014s);
+}
+
+:sltsi regA, regB, imm0014s is iwidth=0 & ins2530=0x2f & regA & regB & imm0014s
+{
+	regA = zext(regB s< imm0014s);
+}
+
+:mfsr regA, sreg1019 is iwidth=0 & ins2530=0x32 & regA & sreg1019 & ins0009=0x002
+{
+	# TODO
+	regA = ReadSPR(sreg1019:2);
+}
+
+:mtsr regA, sreg1019 is iwidth=0 & ins2530=0x32 & regA & sreg1019 & ins0009=0x003
+{
+	# TODO
+	WriteSPR(sreg1019:2, regA);
+}
+
+:dsb is iwidth=0 & ins2530=0x32 & ins0024=0x0000008
+{
+	DataSyncBarrier();
+}
+
+:isb is iwidth=0 & ins2530=0x32 & ins0024=0x0000009
+{
+	InstructionSyncBarrier();
+}
+
+:setend.l is iwidth=0 & ins2530=0x32 & ins0024=0x0020023
+{
+	SetLittleEndian();
+}
+
+:setend.b is iwidth=0 & ins2530=0x32 & ins0024=0x0120023
+{
+	SetBigEndian();
+}
+
+:setgie.d is iwidth=0 & ins2530=0x32 & ins0024=0x0020043
+{
+	DisableGlobalInterrupts();
+}
+
+:setgie.e is iwidth=0 & ins2530=0x32 & ins0024=0x0120043
+{
+	EnableGlobalInterrupts();
+}
+
+#######################################
+######### 16-bit instructions #########
+#######################################
+
+:mov55 hregAw5, hregBw5 is hwidth=1 & hins1014=0x00 & hregAw5 & hregBw5
+{
+	hregAw5 = hregBw5;
+}
+
+:movi55 hregAw5, himm0004 is hwidth=1 & hins1014=0x01 & hregAw5 & himm0004
+{
+	hregAw5 = himm0004;
+}
+
+:add45: hregAw4, hregBw5 is hwidth=1 & hins1014=0x02 & hins0909=0 & hregAw4 & hregBw5
+{
+	hregAw4 = hregAw4 + hregBw5;
+}
+
+:sub45: hregAw4, hregBw5 is hwidth=1 & hins1014=0x02 & hins0909=1 & hregAw4 & hregBw5
+{
+	hregAw4 = hregAw4 - hregBw5;
+}
+
+:addi45 hregAw4, himm0004 is hwidth=1 & hins1014=0x03 & hins0909=0 & hregAw4 & himm0004
+{
+	hregAw4 = hregAw4 + himm0004;
+}
+
+:subi45 hregAw4, himm0004 is hwidth=1 & hins1014=0x03 & hins0909=1 & hregAw4 & himm0004
+{
+	hregAw4 = hregAw4 - himm0004;
+}
+
+:srai45 hregAw4, himm0004 is hwidth=1 & hins1014=0x04 & hins0909=0 & hregAw4 & himm0004
+{
+	hregAw4 = hregAw4 s>> himm0004;
+}
+
+:srli45 hregAw4, himm0004 is hwidth=1 & hins1014=0x04 & hins0909=1 & hregAw4 & himm0004
+{
+	hregAw4 = hregAw4 >> himm0004;
+}
+
+:slli333 hregAw3, hregBw3, himm0002 is hwidth=1 & hins1014=0x05 & hins0909=0 & hregAw3 & hregBw3 & himm0002
+{
+	hregAw3 = hregBw3 << himm0002;
+}
+
+:zeb33 hregAw3, hregBw3 is hwidth=1 & hins1014=0x05 & hins0909=1 & hregAw3 & hregBw3 & hins0002=0
+{
+	hregAw3 = zext(hregBw3:1);
+}
+
+:zeh33 hregAw3, hregBw3 is hwidth=1 & hins1014=0x05 & hins0909=1 & hregAw3 & hregBw3 & hins0002=1
+{
+	hregAw3 = zext(hregBw3:2);
+}
+
+:seb33 hregAw3, hregBw3 is hwidth=1 & hins1014=0x05 & hins0909=1 & hregAw3 & hregBw3 & hins0002=2
+{
+	hregAw3 = sext(hregBw3:1);
+}
+
+:seh33 hregAw3, hregBw3 is hwidth=1 & hins1014=0x05 & hins0909=1 & hregAw3 & hregBw3 & hins0002=3
+{
+	hregAw3 = sext(hregBw3:2);
+}
+
+:addi333 hregAw3, hregBw3, hregCw3 is hwidth=1 & hins1014=0x06 & hins0909=0 & hregAw3 & hregBw3 & hregCw3
+{
+	hregAw3 = hregBw3 + hregCw3;
+}
+
+:subi333 hregAw3, hregBw3, hregCw3 is hwidth=1 & hins1014=0x06 & hins0909=1 & hregAw3 & hregBw3 & hregCw3
+{
+	hregAw3 = hregBw3 - hregCw3;
+}
+
+:addi333 hregAw3, hregBw3, himm0002 is hwidth=1 & hins1014=0x07 & hins0909=0 & hregAw3 & hregBw3 & himm0002
+{
+	hregAw3 = hregBw3 + himm0002;
+}
+
+:subi333 hregAw3, hregBw3, himm0002 is hwidth=1 & hins1014=0x07 & hins0909=1 & hregAw3 & hregBw3 & himm0002
+{
+	hregAw3 = hregBw3 - himm0002;
+}
+
+## something weird?
+#:nop16 is hwidth=1 & hins0814=0x12
+#{
+#	nop();
+#}
+
+:j8 bjhimm8 is hwidth=1 & hins0814=0x55 & bjhimm8
+{
+	goto bjhimm8;
+}
+
+:jr5 hregBw5 is hwidth=1 & hins0814=0x5d & hins0507=0 & hregBw5
+{
+	goto [hregBw5];
+}
+
+:jral5 hregBw5 is hwidth=1 & hins0814=0x5d & hins0507=1 & hregBw5
+{
+	lp = inst_next;
+	call [hregBw5];
+}
+
+:ret5 hregBw5 is hwidth=1 & hins0814=0x5d & hins0507=4 & hregBw5
+{
+	return [hregBw5];
+}
